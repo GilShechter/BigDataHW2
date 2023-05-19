@@ -29,13 +29,18 @@ def prepare_data(primary_path, population_path, gdp_path):
     # Use pandas merge to keep only values that are in both primary and gdp
     primary_gdp = pd.merge(primary, gdp, on=['LOCATION', 'TIME'])
 
+    # Change primary_gdp[Value_x] column name to primary_gdp[Primary_Energy_Supply]
+    primary_gdp = primary_gdp.rename(columns={'Value_x': 'Primary_Energy_Supply'})
+    primary_gdp = primary_gdp.rename(columns={'Value_y': 'GDP'})
+
     # The energy data (the Value column from the file primary_energy_supply.csv) are measured in million tons of oil.
     # Use the population table gdp.csv) and translate the energy data into million tons of oil per capita.
-    primary_gdp['Value_Per_Cap'] = primary['Value'] / gdp['Value']
+    primary_gdp['MLN_TOE_PER_CAP'] = primary_gdp['Primary_Energy_Supply'] / primary_gdp['GDP']
 
-    # Create a new data frame for missing values
+    # Create a new data frame for all the rows in primary_gdp where the LOCATION or TIME is missing
     missing_values = primary_gdp[primary_gdp.isnull().any(axis=1)]
 
+    print("Missing values: ")
     # For each location in missing values, print the years for which the data is missing
     for location in missing_values['LOCATION'].unique():
         print(location, missing_values[missing_values['LOCATION'] == location]['TIME'].values)
@@ -43,6 +48,10 @@ def prepare_data(primary_path, population_path, gdp_path):
     # Drop the rows where Value is missing
     primary_gdp = primary_gdp.dropna()
 
+    # Drop Primary_Energy_Supply column
+    primary_gdp = primary_gdp.drop(columns=['Primary_Energy_Supply'])
+
+    return primary_gdp
 
 
 prepare_data('primary_energy_supply.csv', 'world_population.csv', 'gdp.csv')
