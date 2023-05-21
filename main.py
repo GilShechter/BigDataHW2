@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy import stats
+
 
 def prepare_data(primary_path, population_path, gdp_path):
     '''
@@ -57,8 +59,8 @@ def prepare_data(primary_path, population_path, gdp_path):
 def plot_multiple_locations(data, regions):
     '''
     This function takes a dataframe and a list of locations and plots the MLN_TOE_PER_CAP for each location in the list.
-    :param df:
-    :param location_list:
+    :param data:
+    :param regions:
     :return: None
     '''
     # Calculate the number of plots and dimensions of the subplot grid
@@ -100,8 +102,50 @@ def plot_multiple_locations(data, regions):
     plt.show()
 
 
+def plot_multiple_locations_regressions(data, regions):
+    '''
+    This function takes a dataframe and a list of locations and plots the MLN_TOE_PER_CAP for each location in the list,
+    compared to GDP per capita.
+    :param data:
+    :param regions:
+    :return:
+    '''
+    num_plots = len(regions)
+    num_rows = int(num_plots ** 0.5) + 1
+    num_cols = int(num_plots ** 0.5) if num_plots % int(num_plots ** 0.5) == 0 else int(num_plots ** 0.5) + 1
+
+    fig, axs = plt.subplots(num_rows, num_cols, sharex=True, sharey=True, figsize=(10, 10))
+    fig.suptitle('Energy per Capita vs GDP per Capita by Area')
+
+    axs_flat = axs.flatten() if num_plots > 1 else [axs]
+
+    for i, area in enumerate(regions):
+        ax = axs_flat[i]
+
+        area_data = data[data['LOCATION'] == area]
+        energy = area_data['MLN_TOE_PER_CAP']
+        gdp = area_data['GDP']
+
+        # Perform linear regression
+        slope, intercept, r_value, p_value, std_err = stats.linregress(energy, gdp)
+
+        # Generate points for regression line
+        x_vals = np.linspace(energy.min(), energy.max(), 100)
+        y_vals = slope * x_vals + intercept
+
+        ax.plot(energy, gdp, 'o', label='Data')
+        ax.plot(x_vals, y_vals, 'r-', label='Regression Line')
+        ax.set_title(f'{area} - R^2: {r_value ** 2:.2f}')
+
+        ax.legend()
+
+    if num_plots < num_rows * num_cols:
+        empty_subplots = axs_flat[num_plots:]
+        for ax in empty_subplots:
+            fig.delaxes(ax)
+
+    plt.tight_layout()
+    plt.show()
+
 df = prepare_data('primary_energy_supply.csv', 'world_population.csv', 'gdp.csv')
-plot_multiple_locations(df, ['AUS', 'CAN', 'JPN', 'KOR', 'MEX', 'TUR', 'USA'])
-
-
-
+plot_multiple_locations_regressions(df, ['AUS', 'CAN', 'JPN', 'KOR', 'MEX', 'TUR', 'USA'])
