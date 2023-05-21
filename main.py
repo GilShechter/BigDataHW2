@@ -54,7 +54,54 @@ def prepare_data(primary_path, population_path, gdp_path):
     return primary_gdp
 
 
-prepare_data('primary_energy_supply.csv', 'world_population.csv', 'gdp.csv')
+def plot_multiple_locations(data, regions):
+    '''
+    This function takes a dataframe and a list of locations and plots the MLN_TOE_PER_CAP for each location in the list.
+    :param df:
+    :param location_list:
+    :return: None
+    '''
+    # Calculate the number of plots and dimensions of the subplot grid
+    num_plots = len(regions)
+    num_rows = int(num_plots ** 0.5) + 1
+    num_cols = int(num_plots ** 0.5) if num_plots % int(num_plots ** 0.5) == 0 else int(num_plots ** 0.5) + 1
+
+    # Create the figure and subplots with shared x and y axes
+    fig, axs = plt.subplots(num_rows, num_cols, sharex=True, sharey=True, figsize=(10, 10))
+    fig.suptitle('Energy Consumption vs GDP per Capita by Region')
+
+    # Iterate over the regions and corresponding subplots
+    for i, region in enumerate(regions):
+        row = i // num_cols
+        col = i % num_cols
+        ax = axs[row, col] if num_plots > 1 else axs
+
+        # Filter the data for the current region
+        region_data = data[data['LOCATION'] == region]
+        years = region_data['TIME']
+        energy = region_data['MLN_TOE_PER_CAP']
+        gdp = region_data['GDP']
+
+        # Plot the energy and GDP per capita data
+        ax.plot(years, energy, label='Energy Consumption')
+        ax.plot(years, gdp, label='GDP per Capita')
+        ax.set_title(region)
+
+        # Add legend to the subplot
+        ax.legend()
+
+    # Remove empty subplots
+    if num_plots < num_rows * num_cols:
+        for i in range(num_plots, num_rows * num_cols):
+            fig.delaxes(axs.flatten()[i])
+
+    # Adjust the layout and display the plot
+    plt.tight_layout()
+    plt.show()
+
+
+df = prepare_data('primary_energy_supply.csv', 'world_population.csv', 'gdp.csv')
+plot_multiple_locations(df, ['AUS', 'CAN', 'JPN', 'KOR', 'MEX', 'TUR', 'USA'])
 
 
 
