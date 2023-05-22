@@ -99,7 +99,9 @@ def plot_multiple_locations(data, regions):
 
     # Adjust the layout and display the plot
     plt.tight_layout()
-    plt.show()
+    plt.subplots_adjust(top=0.9)  # Adjust the top spacing to accommodate the suptitle
+
+    return fig
 
 
 def plot_multiple_locations_regressions(data, regions):
@@ -145,7 +147,67 @@ def plot_multiple_locations_regressions(data, regions):
             fig.delaxes(ax)
 
     plt.tight_layout()
-    plt.show()
+    plt.subplots_adjust(top=0.9)  # Adjust the top spacing to accommodate the suptitle
+
+    return fig
+
+
+def plot_multiple_years_regressions(data, years, remove_outliers=False):
+    num_plots = len(years)
+    num_rows = int(num_plots ** 0.5) + 1
+    num_cols = int(num_plots ** 0.5) if num_plots % int(num_plots ** 0.5) == 0 else int(num_plots ** 0.5) + 1
+
+    fig, axs = plt.subplots(num_rows, num_cols, sharex=True, sharey=True, figsize=(10, 10))
+    fig.suptitle('Energy per Capita vs GDP per Capita by Year')
+
+    years_sorted = sorted(years)
+
+    for i, year in enumerate(years_sorted):
+        if num_plots > 1:
+            ax = axs[i // num_cols, i % num_cols]
+        else:
+            ax = axs
+
+        year_data = data[data['TIME'] == year]
+        locations = year_data['LOCATION']
+        energy = year_data['MLN_TOE_PER_CAP']
+        gdp = year_data['GDP']
+
+        if remove_outliers:
+            z_scores = stats.zscore(gdp)
+            outliers = np.abs(z_scores) > 3
+            locations = locations[~outliers]
+            energy = energy[~outliers]
+            gdp = gdp[~outliers]
+            removed_regions = set(year_data['LOCATION'].unique()) - set(locations.unique())
+            if removed_regions:
+                print(f"Removed outliers for year {year} in the following regions: {', '.join(removed_regions)}")
+
+        # Perform linear regression
+        slope, intercept, r_value, p_value, std_err = stats.linregress(energy, gdp)
+
+        # Generate points for regression line
+        x_vals = np.linspace(energy.min(), energy.max(), 100)
+        y_vals = slope * x_vals + intercept
+
+        ax.plot(energy, gdp, 'o', label='Energy Per Capita VS GDP')
+        ax.plot(x_vals, y_vals, 'r-', label='Regression Line')
+        ax.set_title(f'Year: {year} - R^2: {r_value ** 2:.2f}')
+
+        ax.legend()
+
+    if num_plots < num_rows * num_cols:
+        empty_subplots = axs.flatten()[num_plots:]
+        for ax in empty_subplots:
+            fig.delaxes(ax)
+
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.9)  # Adjust the top spacing to accommodate the suptitle
+
+    return fig
+
 
 df = prepare_data('primary_energy_supply.csv', 'world_population.csv', 'gdp.csv')
-plot_multiple_locations_regressions(df, ['AUS', 'CAN', 'JPN', 'KOR', 'MEX', 'TUR', 'USA'])
+years = [2010, 2015, 2020, 1998, 2000, 2007]
+figure = plot_multiple_years_regressions(df, years, remove_outliers=True)
+figure.show()
