@@ -17,7 +17,6 @@ def prepare_data(primary_path, population_path, gdp_path):
     primary = pd.read_csv(primary_path, header=0)
     population = pd.read_csv(population_path, header=0)
     gdp = pd.read_csv(gdp_path, header=0)
-
     # In primary, keep only the rows where MEASURE is in MLN_TOE
     primary = primary[primary['MEASURE'] == 'MLN_TOE']
 
@@ -38,6 +37,26 @@ def prepare_data(primary_path, population_path, gdp_path):
     # The energy data (the Value column from the file primary_energy_supply.csv) are measured in million tons of oil.
     # Use the population table gdp.csv) and translate the energy data into million tons of oil per capita.
     primary_gdp['MLN_TOE_PER_CAP'] = primary_gdp['Primary_Energy_Supply'] / primary_gdp['GDP']
+
+    # Remove rows where TIME is not in the range 1960-2017
+    primary_gdp = primary_gdp[(primary_gdp['TIME'] >= 1960) & (primary_gdp['TIME'] <= 2017)]
+
+    # Change location['Country Code'] to location['LOCATION']
+    population = population.rename(columns={'Country Code': 'LOCATION'})
+
+    # Merge the DataFrames based on country code and year
+    merged_df = primary_gdp.merge(population, on='LOCATION')
+    # Init a new column for GDP per capita
+    merged_df['GDP per capita'] = 0
+
+    # Divide GDP value by population where primary_gdp[LOCATION] == population[Country Code] and primary_gdp[TIME] == population[primary_gdp[TIME]]
+    for index, row in merged_df.iterrows():
+        time = merged_df.loc[index, 'TIME']
+        # time to string
+        time = str(time)
+        merged_df.loc[index, 'GDP per capita'] = merged_df.loc[index, 'GDP'] / merged_df.loc[index, time]
+
+    primary_gdp['GDP'] = merged_df['GDP per capita']
 
     # Create a new data frame for all the rows in primary_gdp where the LOCATION or TIME is missing
     missing_values = primary_gdp[primary_gdp.isnull().any(axis=1)]
@@ -85,8 +104,8 @@ def plot_multiple_locations(data, regions):
         gdp = region_data['GDP']
 
         # Plot the energy and GDP per capita data
-        ax.plot(years, energy, label='Energy Consumption')
-        ax.plot(years, gdp, label='GDP per Capita')
+        # ax.plot(years, energy, label='Energy Consumption')
+        ax.plot(energy, gdp, label='GDP per Capita')
         ax.set_title(region)
 
         # Add legend to the subplot
@@ -208,6 +227,7 @@ def plot_multiple_years_regressions(data, years, remove_outliers=False):
 
 
 df = prepare_data('primary_energy_supply.csv', 'world_population.csv', 'gdp.csv')
-years = [2010, 2015, 2020, 1998, 2000, 2007]
-figure = plot_multiple_years_regressions(df, years, remove_outliers=True)
-figure.show()
+print(df.head())
+# years = [2010, 2015, 2020, 1998, 2000, 2007]
+# figure = plot_multiple_locations(df, ['USA', 'CHN', 'IND', 'RUS', 'JPN', 'DEU', 'GBR', 'FRA', 'ITA', 'BRA', 'CAN', 'AUS'])
+# figure.show()
