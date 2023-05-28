@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import stats
-
+import seaborn as sns
 
 def prepare_data(primary_path, population_path, gdp_path):
     '''
@@ -34,10 +34,6 @@ def prepare_data(primary_path, population_path, gdp_path):
     primary_gdp = primary_gdp.rename(columns={'Value_x': 'Primary_Energy_Supply'})
     primary_gdp = primary_gdp.rename(columns={'Value_y': 'GDP'})
 
-    # The energy data (the Value column from the file primary_energy_supply.csv) are measured in million tons of oil.
-    # Use the population table gdp.csv) and translate the energy data into million tons of oil per capita.
-    primary_gdp['MLN_TOE_PER_CAP'] = primary_gdp['Primary_Energy_Supply'] / primary_gdp['GDP']
-
     # Remove rows where TIME is not in the range 1960-2017
     primary_gdp = primary_gdp[(primary_gdp['TIME'] >= 1960) & (primary_gdp['TIME'] <= 2017)]
 
@@ -49,14 +45,19 @@ def prepare_data(primary_path, population_path, gdp_path):
     # Init a new column for GDP per capita
     merged_df['GDP per capita'] = 0
 
+    merged_df = merged_df.merge(gdp, on=['LOCATION', 'TIME'])
+    merged_df['MLN_TOE_PER_CAP'] = 0
+
     # Divide GDP value by population where primary_gdp[LOCATION] == population[Country Code] and primary_gdp[TIME] == population[primary_gdp[TIME]]
     for index, row in merged_df.iterrows():
         time = merged_df.loc[index, 'TIME']
         # time to string
         time = str(time)
         merged_df.loc[index, 'GDP per capita'] = merged_df.loc[index, 'GDP'] / merged_df.loc[index, time]
+        merged_df.loc[index, 'MLN_TOE_PER_CAP'] = merged_df.loc[index, 'Primary_Energy_Supply'] / merged_df.loc[index, time]
 
     primary_gdp['GDP'] = merged_df['GDP per capita']
+    primary_gdp['MLN_TOE_PER_CAP'] = merged_df['MLN_TOE_PER_CAP']
 
     # Create a new data frame for all the rows in primary_gdp where the LOCATION or TIME is missing
     missing_values = primary_gdp[primary_gdp.isnull().any(axis=1)]
@@ -76,12 +77,6 @@ def prepare_data(primary_path, population_path, gdp_path):
 
 
 def plot_multiple_locations(data, regions):
-    '''
-    This function takes a dataframe and a list of locations and plots the MLN_TOE_PER_CAP for each location in the list.
-    :param data:
-    :param regions:
-    :return: None
-    '''
     # Calculate the number of plots and dimensions of the subplot grid
     num_plots = len(regions)
     num_rows = int(num_plots ** 0.5) + 1
@@ -99,13 +94,11 @@ def plot_multiple_locations(data, regions):
 
         # Filter the data for the current region
         region_data = data[data['LOCATION'] == region]
-        years = region_data['TIME']
         energy = region_data['MLN_TOE_PER_CAP']
         gdp = region_data['GDP']
 
-        # Plot the energy and GDP per capita data
-        # ax.plot(years, energy, label='Energy Consumption')
-        ax.plot(energy, gdp, label='GDP per Capita')
+        # Plot the energy and GDP per capita data as dots
+        ax.plot(energy, gdp, 'o', label='GDP per Capita')
         ax.set_title(region)
 
         # Add legend to the subplot
@@ -124,13 +117,6 @@ def plot_multiple_locations(data, regions):
 
 
 def plot_multiple_locations_regressions(data, regions):
-    '''
-    This function takes a dataframe and a list of locations and plots the MLN_TOE_PER_CAP for each location in the list,
-    compared to GDP per capita.
-    :param data:
-    :param regions:
-    :return:
-    '''
     num_plots = len(regions)
     num_rows = int(num_plots ** 0.5) + 1
     num_cols = int(num_plots ** 0.5) if num_plots % int(num_plots ** 0.5) == 0 else int(num_plots ** 0.5) + 1
@@ -226,8 +212,93 @@ def plot_multiple_years_regressions(data, years, remove_outliers=False):
     return fig
 
 
+def global_correlation(df, year):
+    # Divide the data based on the year
+    df_before_year = df[df['TIME'] < year]
+    df_after_year = df[df['TIME'] >= year]
+
+    # Compute correlation for each LOCATION before the year
+    corr_before_year = df_before_year.groupby('LOCATION')['MLN_TOE_PER_CAP', 'GDP'].corr().iloc[0::2, -1]
+
+    # Compute correlation for each LOCATION after the year
+    corr_after_year = df_after_year.groupby('LOCATION')['MLN_TOE_PER_CAP', 'GDP'].corr().iloc[0::2, -1]
+
+    # Create subplots
+    fig, axs = plt.subplots(2, 1, figsize=(8, 10))
+
+    # Plot histogram for correlation before the year
+    sns.histplot(corr_before_year, kde=True, ax=axs[0])
+    axs[0].set_title(f'Correlation before {year}')
+
+    # Plot histogram for correlation after the year
+    sns.histplot(corr_after_year, kde=True, ax=axs[1])
+    axs[1].set_title(f'Correlation after {year}')
+
+    # Display the plots
+    plt.tight_layout()
+
+    # Return the plots
+    return fig
+
+
+def economic_efficiency(df, areas):
+    # Filter the DataFrame for the specified areas
+    filtered_df = df[df['LOCATION'].isin(areas)]
+
+    # Calculate energy efficiency (GDP per capita / energy consumption per capita)
+    filtered_df['Efficiency'] = filtered_df['GDP'] / filtered_df['MLN_TOE_PER_CAP']
+
+    # Create a figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot the efficiency for each area
+    for area in areas:
+        area_data = filtered_df[filtered_df['LOCATION'] == area]
+        ax.plot(area_data['TIME'], area_data['Efficiency'], label=area)
+
+    # Set labels and title
+    ax.set_xlabel('Year')
+    ax.set_ylabel('Energy Efficiency')
+    ax.set_title('Energy Efficiency Comparison')
+
+    # Add legend
+    ax.legend()
+
+    return fig
+
+
+def creative_part(df):
+    # Calculate the average energy consumption per capita by year
+    avg_energy_per_capita = df.groupby('TIME')['MLN_TOE_PER_CAP'].mean()
+
+    # Calculate the average GDP per capita by year
+    avg_gdp_per_capita = df.groupby('TIME')['GDP'].mean()
+
+    # Create a figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot the average energy consumption per capita
+    ax.plot(avg_energy_per_capita.index, avg_energy_per_capita, label='Energy Consumption per Capita')
+
+    # Plot the average GDP per capita
+    ax.plot(avg_gdp_per_capita.index, avg_gdp_per_capita, label='GDP per Capita')
+
+    # Set labels and title
+    ax.set_xlabel('Year')
+    ax.set_ylabel('Amount')
+    ax.set_title('Average Energy Consumption and GDP per Capita')
+
+    # Add legend
+    ax.legend()
+
+    # Add additional information/insight
+    # Calculate the correlation between energy consumption and GDP per capita
+    correlation = df['MLN_TOE_PER_CAP'].corr(df['GDP'])
+    ax.text(0.1, 0.9, f"Correlation: {correlation:.2f}", transform=ax.transAxes)
+
+    # Display the figure
+    plt.show()
+
+
 df = prepare_data('primary_energy_supply.csv', 'world_population.csv', 'gdp.csv')
-print(df.head())
-# years = [2010, 2015, 2020, 1998, 2000, 2007]
-# figure = plot_multiple_locations(df, ['USA', 'CHN', 'IND', 'RUS', 'JPN', 'DEU', 'GBR', 'FRA', 'ITA', 'BRA', 'CAN', 'AUS'])
-# figure.show()
+creative_part(df)
