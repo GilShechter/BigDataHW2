@@ -1,8 +1,16 @@
+"""
+Authors:
+Gil Shechter - 207226317
+Asaf Ben Shabat - 312391774
+"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 from scipy import stats
 import seaborn as sns
+
 
 def prepare_data(primary_path, population_path, gdp_path):
     '''
@@ -264,7 +272,7 @@ def economic_efficiency(df, areas):
     # Add legend
     ax.legend()
 
-    return fig
+    plt.show()
 
 
 def creative_part(df):
@@ -296,9 +304,43 @@ def creative_part(df):
     correlation = df['MLN_TOE_PER_CAP'].corr(df['GDP'])
     ax.text(0.1, 0.9, f"Correlation: {correlation:.2f}", transform=ax.transAxes)
 
-    # Display the figure
-    plt.show()
+    return fig
 
 
-df = prepare_data('primary_energy_supply.csv', 'world_population.csv', 'gdp.csv')
-creative_part(df)
+def main():
+    # Step 1: Run prepare_data and save it as variable df
+    df = prepare_data(primary_path='primary_energy_supply.csv',
+                      population_path='world_population.csv',
+                      gdp_path='gdp.csv')
+
+    # Step 2: Run methods
+    regions = ['USA', 'CHN', 'ISR', 'CAN', 'JPN', 'DEU', 'AUS', 'GBR', 'ITA']
+    years = [2000, 2002, 2004, 2006, 2008, 2010, 2012, 2014, 2016]
+
+    plot_multiple_locations(df, regions)
+    plt.savefig('plot_multiple_locations.png')
+    plt.close()
+
+    plot_multiple_locations_regressions(df, regions)
+    plt.savefig('plot_multiple_locations_regressions.png')
+    plt.close()
+
+    plot_multiple_years_regressions(df, years)
+    plt.savefig('plot_multiple_years_regressions.png')
+    plt.close()
+
+    global_correlation(df, 2000)
+    plt.savefig('global_correlation.png')
+    plt.close()
+
+    economic_efficiency(df, regions)
+    plt.savefig('economic_efficiency.png')
+    plt.close()
+
+    creative_part(df)
+    plt.savefig('creative_part.png')
+    plt.close()
+
+
+if __name__ == '__main__':
+    main()
